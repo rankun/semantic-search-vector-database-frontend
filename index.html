@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Search with USE</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .result-item {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Semantic Search Prototype</h1>
+    <input type="text" id="searchBox" placeholder="Enter your search..." size="50" />
+    <button onclick="handleSearch()">Search</button>
+    <div id="results"></div>
+
+    <script>
+        let model;
+        const mockData = [
+            { id: 1, name: "A red apple on the table" },
+            { id: 2, name: "A fast sports car driving on the highway" },
+            { id: 3, name: "A cat sitting on the windowsill" },
+            { id: 4, name: "A book about quantum physics" },
+            { id: 5, name: "Delicious homemade pizza recipe" }
+        ];
+
+        async function loadModel() {
+            model = await use.load();
+            console.log('Universal Sentence Encoder model loaded.');
+        }
+
+        loadModel();
+
+        async function handleSearch() {
+            const query = document.getElementById("searchBox").value;
+            if (!query || !model) {
+                alert("Please enter a query and make sure the model is loaded.");
+                return;
+            }
+            await searchItems(query);
+        }
+
+        async function searchItems(query) {
+            console.log(`Searching for: ${query}`);
+            const queryEmbedding = await model.embed([query]);
+            const queryVector = queryEmbedding.arraySync()[0];
+
+            const results = await Promise.all(mockData.map(async item => {
+                const itemEmbedding = await model.embed([item.name]);
+                const itemVector = itemEmbedding.arraySync()[0];
+                const similarity = cosineSimilarity(queryVector, itemVector);
+                return { item, similarity };
+            }));
+
+            // Sort results by similarity in descending order
+            results.sort((a, b) => b.similarity - a.similarity);
+            displayResults(results);
+        }
+
+        function displayResults(results) {
+            const resultsContainer = document.getElementById("results");
+            resultsContainer.innerHTML = "";
+            results.forEach(result => {
+                const div = document.createElement("div");
+                div.className = "result-item";
+                div.textContent = `${result.item.name} (Similarity: ${result.similarity.toFixed(2)})`;
+                resultsContainer.appendChild(div);
+            });
+        }
+
+        function cosineSimilarity(vecA, vecB) {
+            const dotProduct = vecA.reduce((sum, a, idx) => sum + a * vecB[idx], 0);
+            const magnitudeA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
+            const magnitudeB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
+            return dotProduct / (magnitudeA * magnitudeB);
+        }
+    </script>
+</body>
+</html>
